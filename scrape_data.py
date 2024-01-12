@@ -7,89 +7,74 @@ import pygetwindow as gw
 import os
 import threading
 
-# Folder to save data
+# Constants
 data_folder = "ets2_data"
+sequence_length = 5  # Number of frames in a sequence
+capture_interval = 0.1  # Time interval between captures in seconds
+window_title = "Euro Truck Simulator 2"  # Adjust if necessary
+
+# Ensure data folder exists
 if not os.path.exists(data_folder):
     os.makedirs(data_folder)
 
 # Global variables
-screenshots = []
+current_sequence = []
 key_presses = []
 capturing = False
-last_saved_file_index = -1
+sequence_counter = 0
 
 # Function to capture the screen and apply pre-processing
-def capture_screen(window_title=None):
-    if window_title and capturing:
-        game_window = gw.getWindowsWithTitle(window_title)[0]
-        game_window.activate()
-        x, y, width, height = game_window.left, game_window.top, game_window.width, game_window.height
-        screen = np.array(ImageGrab.grab(bbox=(x, y, x + width, y + height)))
-        screen = cv2.cvtColor(screen, cv2.COLOR_BGR2RGB)
-
-        # Pre-processing: Resize and normalize
-        screen = cv2.resize(screen, (224, 224))  # Example resize, adjust as needed
-        screen = screen / 255.0  # Normalize pixel values
-
-        return screen
-    else:
-        return None
+def capture_screen(window_title):
+    game_window = gw.getWindowsWithTitle(window_title)[0]
+    game_window.activate()
+    x, y, width, height = game_window.left, game_window.top, game_window.width, game_window.height
+    screen = np.array(ImageGrab.grab(bbox=(x, y, x + width, y + height)))
+    screen = cv2.cvtColor(screen, cv2.COLOR_BGR2RGB)
+    screen = cv2.resize(screen, (224, 224))  # Resize for the model
+    screen = screen / 255.0  # Normalize
+    return screen
 
 # Function to log keyboard inputs
 def on_press(key):
-    global capturing, last_saved_file_index
-    try:
-        if key == keyboard.Key.page_up:
-            capturing = True
-            print("Data collection started.")
-        elif key == keyboard.Key.page_down:
-            capturing = False
-            save_data()
-            print("Data collection stopped.")
-        elif capturing:
-            print(f"Alphanumeric key pressed: {key.char}")
-            key_presses.append((time.time(), key.char))
-    except AttributeError:
-        if capturing:
-            print(f"Special key pressed: {key}")
-            key_presses.append((time.time(), str(key)))
+    global current_sequence, key_presses, capturing, sequence_counter
+    if capturing:
+        key_char = key.char if hasattr(key, 'char') else str(key)
+        key_presses.append((time.time(), key_char))
 
-# Function to save the data
-def save_data():
-    global last_saved_file_index
-    for i, (screenshot, key_press) in enumerate(zip(screenshots, key_presses)):
-        index = last_saved_file_index + 1 + i
-        # Save screenshot
-        screenshot_path = os.path.join(data_folder, f"image_{index}.png")
-        cv2.imwrite(screenshot_path, screenshot * 255)  # Convert back to original scale
+# Function to handle start/stop capture
+def on_release(key):
+    global capturing, sequence_counter
+    if key == keyboard.Key.page_up:
+        capturing = True
+        print("Data collection started.")
+    elif key == keyboard.Key.page_down:
+        capturing = False
+        save_sequence(current_sequence, sequence_counter)
+        print("Data collection stopped.")
+        current_sequence.clear()
+        sequence_counter += 1
+        return False
 
-        # Save key press
-        with open(os.path.join(data_folder, "key_logs.txt"), "a") as file:
-            file.write(f"{index}, {key_press[0]}, {key_press[1]}\n")
-    last_saved_file_index += len(screenshots)
-    screenshots.clear()
-    key_presses.clear()
+# Function to save a sequence
+def save_sequence(sequence, seq_counter):
+    sequence_folder = os.path.join(data_folder, f"sequence_{seq_counter}")
+    os.makedirs(sequence_folder, exist_ok=True)
 
-# Function to get the index of the last saved file
-def get_last_saved_index():
-    files = [f for f in os.listdir(data_folder) if f.endswith('.png')]
-    if files:
-        last_file = sorted(files)[-1]
-        return int(last_file.split('_')[-1].split('.')[0])
-    return -1
+    label_file_path = os.path.join(sequence_folder, "labels.txt")
+    with open(label_file_path, "w") as label_file:
+        for i, frame in enumerate(sequence):
+            screenshot_path = os.path.join(sequence_folder, f"frame_{i}.png")
+            cv2.imwrite(screenshot_path, frame * 255)  # Convert back to original scale
+            label_file.write(f"{i}, {key_presses[i][1]}\n")
 
-# Function to start data collection
-def start_data_collection(window_title):
-    listener = keyboard.Listener(on_press=on_press)
-    listener.start()
-    while True:
-        if capturing:
-            screen = capture_screen(window_title)
-            if screen is not None:
-                screenshots.append(screen)
-        time.sleep(0.1)  # Adjust this based on capture frequency
+# Main data collection loop
+def start_data_collection():
+    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+        while listener.running:
+            if capturing and len(current_sequence) < sequence_length:
+                screen = capture_screen(window_title)
+                current_sequence.append(screen)
+                time.sleep(capture_interval)
 
 if __name__ == "__main__":
-    window_title = "Euro Truck Simulator 2"  # Adjust window title if needed
-    last_saved_file_index = get_last_saved_index()
-    start_data_collection(window_title)
+    start_data_collection()
