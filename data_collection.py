@@ -43,17 +43,14 @@ def on_press(key):
 
 # Function to handle start/stop capture
 def on_release(key):
-    global capturing, sequence_counter
+    global capturing
     if key == keyboard.Key.page_up:
         capturing = True
         print("Data collection started.")
     elif key == keyboard.Key.page_down:
         capturing = False
-        save_sequence(current_sequence, sequence_counter)
         print("Data collection stopped.")
-        current_sequence.clear()
-        sequence_counter += 1
-        return False
+        return False  # Stop the listener
 
 # Function to save a sequence
 def save_sequence(sequence, seq_counter):
@@ -67,14 +64,20 @@ def save_sequence(sequence, seq_counter):
             cv2.imwrite(screenshot_path, frame * 255)  # Convert back to original scale
             label_file.write(f"{i}, {key_presses[i][1]}\n")
 
-# Main data collection loop
+# Modified data collection loop
 def start_data_collection():
+    global current_sequence, key_presses, sequence_counter
     with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
         while listener.running:
             if capturing and len(current_sequence) < sequence_length:
                 screen = capture_screen(window_title)
                 current_sequence.append(screen)
                 time.sleep(capture_interval)
+            elif capturing and len(current_sequence) == sequence_length:
+                save_sequence(current_sequence, sequence_counter)
+                current_sequence.clear()
+                key_presses.clear()
+                sequence_counter += 1
 
 if __name__ == "__main__":
     start_data_collection()
