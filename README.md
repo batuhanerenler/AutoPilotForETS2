@@ -72,11 +72,3 @@ This project aims to demonstrate a simple form of autonomous driving in Euro Tru
 ## Contributions
 
 Contributions to this project are welcome. Please submit a pull request or open an issue for bugs and feature requests.
-
-## License
-
-[Your chosen license]
-
----
-
-Remember to replace placeholder text like repository links or specific installation instructions based on your project's setup and dependencies. Additionally, you should choose an appropriate license for your project and include it in the `License` section.
