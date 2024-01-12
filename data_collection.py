@@ -62,8 +62,12 @@ def save_sequence(sequence, seq_counter):
         for i, frame in enumerate(sequence):
             screenshot_path = os.path.join(sequence_folder, f"frame_{i}.png")
             cv2.imwrite(screenshot_path, frame * 255)  # Convert back to original scale
-            label_file.write(f"{i}, {key_presses[i][1]}\n")
-
+            
+            # Check if there is a corresponding key press
+            if i < len(key_presses):
+                label_file.write(f"{i}, {key_presses[i][1]}\n")
+            else:
+                label_file.write(f"{i}, None\n")  # Write 'None' if no key press for this frame
 # Modified data collection loop
 def start_data_collection():
     global current_sequence, key_presses, sequence_counter
